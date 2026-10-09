@@ -51,7 +51,7 @@ class GitHubPublisher:
         message = f"Save weather {phase}\n\nArtifact content: {fingerprint}"
         response = self.client.get(f"/git/ref/heads/{branch}")
         if response.status_code == 404:
-            default = self._get("")["default_branch"]
+            default = self._get(f"https://api.github.com/repos/{self.repository}")["default_branch"]
             base = self._get(f"/git/ref/heads/{default}")["object"]["sha"]
             created = self.client.post(
                 "/git/refs", json={"ref": f"refs/heads/{branch}", "sha": base}
