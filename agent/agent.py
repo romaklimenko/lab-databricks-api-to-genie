@@ -1,11 +1,12 @@
 """A real model-driven supervisor with bounded specialist delegation."""
 
 import json
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from pydantic import Field, create_model
 
-from weather_lab.contracts import DatasetContract, IngestionSpec, Review, Route, validate
+from weather_lab.contracts import DatasetContract, IngestionSpec, Review, validate
 from weather_lab.source import DOCS, FIELDS, PARAMETERS
 
 
@@ -78,11 +79,19 @@ async def design(brain, snapshot: dict, request: str, emit, *, inject_fault=Fals
             available = ["review"]
         else:
             available = ["ingestion", "steward", "stop"]
+        choice_schema = create_model(
+            "AvailableSupervisorAction",
+            specialist=(
+                Literal[tuple(available)],
+                Field(description="Select one of the available actions."),
+            ),
+            reason=(str, Field(max_length=700)),
+        )
         decision = await brain.structured(
             "supervisor",
             "Choose the specialist that can resolve the current findings. Only select an available action. Ingestion drafts field mappings only. Steward drafts column semantics only. Reviewer checks both. Publish signals deterministic tools to commit, load, and configure Genie. Never claim completion before publish is available. Prior failures may already have been addressed; review must recheck them.",
             {"request": request, "available": available, "state": state},
-            Route,
+            choice_schema,
         )
         if decision.specialist not in available:
             raise ValueError(f"Supervisor chose an invalid transition: {decision.specialist}")
@@ -167,9 +176,13 @@ async def design(brain, snapshot: dict, request: str, emit, *, inject_fault=Fals
     ]:
         graph.add_node(name, node)
     graph.add_edge(START, "supervisor")
+
+    def choose_specialist(state):
+        return state["route"]
+
     graph.add_conditional_edges(
         "supervisor",
-        lambda state: state["route"],
+        choose_specialist,
         {
             "ingestion": "ingestion",
             "steward": "steward",
