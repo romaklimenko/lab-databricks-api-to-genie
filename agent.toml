@@ -1,0 +1,10 @@
+schema_version = 1
+
+[agent]
+framework = "langgraph"
+server = "agentbricks"
+
+# Bind a unique experiment before cloud deployment:
+# agentbricks tracing bind --experiment-name /Shared/<your-lab-experiment>
+# The workflow persists receipts in WEATHER_STATE_VOLUME.
+# Long-term agent memory is outside this lab.

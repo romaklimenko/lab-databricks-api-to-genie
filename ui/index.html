@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Weather to Genie</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f4f5f2; --fg:#172d32; --panel:#fff; --muted:#52676d; --line:#cbd5d2; --accent:#145b65; }
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}
+    main{max-width:1120px;margin:48px auto;padding:0 24px}header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:28px}
+    h1{font-size:42px;line-height:1.1;margin:8px 0 14px;letter-spacing:-1.5px}h2{font-size:18px;margin-top:0}p{margin:8px 0}.eyebrow{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr;gap:24px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px}
+    textarea{width:100%;resize:vertical;min-height:130px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg);font:inherit;padding:12px}
+    button{font:inherit;cursor:pointer;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:white;padding:9px 15px;margin:8px 8px 8px 0}button.secondary{background:transparent;color:var(--accent)}button:disabled{opacity:.55;cursor:wait}
+    .muted,small{color:var(--muted)}label{display:block;margin:10px 0}.badge{display:inline-block;border:1px solid var(--line);padding:2px 9px;border-radius:20px;font-size:12px;margin-right:8px}
+    #events{padding-left:21px;max-height:390px;overflow:auto}#events li{margin:0 0 15px;padding-left:5px}#events strong{display:block}.empty{color:var(--muted);padding:20px 0}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:var(--bg);padding:14px;border-radius:7px}details{margin:14px 0}summary{cursor:pointer;font-weight:600}
+    #answer{margin-top:24px}#error{color:#a32c29;white-space:pre-wrap}a{color:var(--accent)}[hidden]{display:none!important}
+    @media(max-width:760px){main{margin:24px auto}.grid{grid-template-columns:1fr}h1{font-size:34px}}
+    @media(prefers-color-scheme:dark){:root{--bg:#132025;--fg:#e4eeeb;--panel:#1c2b31;--muted:#a5b9b8;--line:#3b5055;--accent:#72cad0}button{color:#132025}}
+  </style>
+</head>
+<body><main>
+  <header><span class="eyebrow">Databricks multi-agent lab</span><h1>Weather to Genie</h1><p>One request. Three specialists. A dataset with meaning.</p><p class="muted">Copenhagen, Aarhus, Odense · September 21-27, 2026 · ERA5 reanalysis</p><div id="identity" aria-live="polite">Checking connection...</div></header>
+  <div class="grid">
+    <section class="panel"><h2>Give the team a task</h2>
+      <form id="chat"><label for="prompt">Request</label><textarea id="prompt">Load weather for Copenhagen, Aarhus, and Odense for September 21-27, 2026. Configure Genie and save the implementation.</textarea>
+      <label><input type="checkbox" id="fault"> Inject a labeled wind-unit mistake to test review</label>
+      <button id="send" type="submit">Run request</button><button class="secondary" id="example" type="button">Ask about precipitation</button></form>
+      <p class="muted">Ingestion prepares the adapter. Steward documents meaning. Reviewer checks both before publication.</p>
+      <p id="status" role="status">Ready.</p><p id="error" role="alert"></p>
+    </section>
+    <section class="panel"><h2>Delegation and tool results</h2><div id="empty" class="empty">Agent decisions and validation results will appear here.</div><ol id="events" aria-live="polite"></ol></section>
+  </div>
+  <section id="answer" class="panel" hidden><h2>Result</h2><p class="muted">AI-generated answer. Verify with the generated SQL and source data.</p><div id="answer-content"></div></section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const session = sessionStorage.getItem('weather-session') || crypto.randomUUID();
+sessionStorage.setItem('weather-session', session);
+let busy = false;
+async function api(path, options={}) {
+  const response = await fetch(path, {headers:{'Content-Type':'application/json'}, ...options});
+  const data = await response.json();
+  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
+  return data;
+}
+function addEvent(event) {
+  if (!event || !event.phase) return;
+  $('empty').hidden = true;
+  const li = document.createElement('li'), title = document.createElement('strong');
+  title.textContent = `${event.role || 'Tool'}: ${event.phase}`;
+  li.append(title, document.createTextNode(event.detail || ''));
+  $('events').append(li); li.scrollIntoView({block:'nearest'});
+}
+function block(parent, title, value, collapsible=false) {
+  const container = document.createElement(collapsible ? 'details' : 'div');
+  if (title) {const heading=document.createElement(collapsible?'summary':'h3');heading.textContent=title;container.append(heading)}
+  const pre=document.createElement('pre');pre.textContent=typeof value==='string'?value:JSON.stringify(value,null,2);container.append(pre);parent.append(container);
+}
+function renderResult(result) {
+  $('answer').hidden=false; $('answer-content').replaceChildren();
+  const answer=result.answer || result;
+  if (answer.text) block($('answer-content'),'Answer',Array.isArray(answer.text)?answer.text.join('\n\n'):answer.text);
+  if (answer.queries?.length) block($('answer-content'),'Generated SQL',answer.queries.join('\n\n'),true);
+  if (answer.data?.length) block($('answer-content'),'Query results',answer.data,true);
+  if (result.loaded) block($('answer-content'),'Validation',result.loaded,true);
+  if (result.source_commit) block($('answer-content'),'Source revision',result.source_commit,true);
+  if (result.evidence_commit) block($('answer-content'),'Evidence revision',result.evidence_commit,true);
+}
+async function follow(id) {
+  let lastEvent=0;
+  const events = new EventSource(`/api/invocations/${id}/events`);
+  events.onmessage = event => {
+    const sequence=Number(event.lastEventId);
+    if (sequence>lastEvent) {addEvent(JSON.parse(event.data));lastEvent=sequence;}
+  };
+  try {for (;;) {
+    const run=await api(`/api/invocations/${id}`);
+    // The event stream shows live progress. Status polling detects terminal results.
+    $('status').textContent=`Request ${run.status || 'running'}...`;
+    const result=run.output || run.result;
+    if (['completed','succeeded','failed','cancelled'].includes(run.status)) {
+      sessionStorage.removeItem('weather-invocation');
+      if (run.status==='failed' || run.status==='cancelled') throw new Error(JSON.stringify(run.error || run));
+      renderResult(result || run); $('status').textContent='Completed.'; return;
+    }
+    await new Promise(resolve=>setTimeout(resolve,1500));
+  }} finally {events.close();}
+}
+async function run(input) {
+  if (busy) return; busy=true; $('send').disabled=true; $('error').textContent='';
+  try {
+    const id=crypto.randomUUID(); sessionStorage.setItem('weather-invocation',id);
+    $('events').replaceChildren(); $('empty').hidden=false; $('answer').hidden=true;
+    await api('/api/invocations',{method:'POST',body:JSON.stringify({id,session_id:session,input,background:true})});
+    await follow(id);
+  } catch(error) {$('error').textContent=error.message; $('status').textContent='Request stopped. Completed phases remain saved.';}
+  finally {busy=false;$('send').disabled=false;}
+}
+$('chat').addEventListener('submit',event=>{event.preventDefault();run({prompt:$('prompt').value,inject_fault:$('fault').checked})});
+$('example').addEventListener('click',()=>{$('prompt').value='Which city had the most precipitation during September 21-27, 2026? Show the total and unit.';$('fault').checked=false;});
+api('/api/whoami').then(who=>{$('identity').textContent=`${who.viewer} | Runs as: ${who.execution_identity} | ${who.target} mode`}).catch(error=>{$('identity').textContent=error.message});
+const pending=sessionStorage.getItem('weather-invocation');
+if (pending) {busy=true;$('send').disabled=true;follow(pending).catch(error=>{$('error').textContent=error.message}).finally(()=>{busy=false;$('send').disabled=false})}
+</script></body></html>

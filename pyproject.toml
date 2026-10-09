@@ -1,0 +1,37 @@
+[project]
+name = "weather-agent-lab"
+version = "0.1.0"
+description = "A Databricks supervisor that onboards weather data into Genie"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "databricks-agentbricks[langgraph]==0.4.0",
+  "databricks-sdk==0.150.0",
+  "httpx==0.28.1",
+  "python-dotenv==1.2.4",
+]
+
+[project.scripts]
+weather-lab = "weather_lab.cli:main"
+start-server = "runtime.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["weather_lab", "agent", "runtime"]
+
+[dependency-groups]
+dev = ["pytest>=9.0.2", "pytest-asyncio>=1.3.0", "ruff>=0.14.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]

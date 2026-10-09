@@ -1,0 +1,203 @@
+{
+  "attribution": "Weather data by Open-Meteo, using ERA5 reanalysis from Copernicus/ECMWF.",
+  "documentation_url": "https://open-meteo.com/en/docs/historical-weather-api",
+  "licence": "CC BY 4.0",
+  "licence_url": "https://open-meteo.com/en/licence",
+  "locations": [
+    {
+      "location": {
+        "city": "Copenhagen",
+        "city_id": "copenhagen",
+        "latitude": 55.6761,
+        "longitude": 12.5683
+      },
+      "response": {
+        "daily": {
+          "precipitation_sum": [
+            0.0,
+            0.0,
+            2.0,
+            5.6,
+            0.0,
+            0.1,
+            0.0
+          ],
+          "temperature_2m_max": [
+            15.6,
+            17.8,
+            15.9,
+            16.2,
+            15.8,
+            16.6,
+            17.1
+          ],
+          "time": [
+            "2026-09-21",
+            "2026-09-22",
+            "2026-09-23",
+            "2026-09-24",
+            "2026-09-25",
+            "2026-09-26",
+            "2026-09-27"
+          ],
+          "wind_speed_10m_max": [
+            10.36,
+            3.97,
+            4.23,
+            4.1,
+            5.29,
+            5.28,
+            7.77
+          ]
+        },
+        "daily_units": {
+          "precipitation_sum": "mm",
+          "temperature_2m_max": "°C",
+          "time": "iso8601",
+          "wind_speed_10m_max": "m/s"
+        },
+        "elevation": 10.0,
+        "generationtime_ms": 0.1379251480102539,
+        "latitude": 55.75,
+        "longitude": 12.5,
+        "timezone": "Europe/Copenhagen",
+        "timezone_abbreviation": "GMT+2",
+        "utc_offset_seconds": 7200
+      }
+    },
+    {
+      "location": {
+        "city": "Aarhus",
+        "city_id": "aarhus",
+        "latitude": 56.1629,
+        "longitude": 10.2039
+      },
+      "response": {
+        "daily": {
+          "precipitation_sum": [
+            0.0,
+            0.0,
+            3.6,
+            2.7,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "temperature_2m_max": [
+            15.3,
+            18.0,
+            17.9,
+            16.3,
+            17.3,
+            17.1,
+            16.9
+          ],
+          "time": [
+            "2026-09-21",
+            "2026-09-22",
+            "2026-09-23",
+            "2026-09-24",
+            "2026-09-25",
+            "2026-09-26",
+            "2026-09-27"
+          ],
+          "wind_speed_10m_max": [
+            9.8,
+            4.47,
+            5.72,
+            4.91,
+            5.45,
+            5.49,
+            8.33
+          ]
+        },
+        "daily_units": {
+          "precipitation_sum": "mm",
+          "temperature_2m_max": "°C",
+          "time": "iso8601",
+          "wind_speed_10m_max": "m/s"
+        },
+        "elevation": 27.0,
+        "generationtime_ms": 0.11932849884033203,
+        "latitude": 56.25,
+        "longitude": 10.25,
+        "timezone": "Europe/Copenhagen",
+        "timezone_abbreviation": "GMT+2",
+        "utc_offset_seconds": 7200
+      }
+    },
+    {
+      "location": {
+        "city": "Odense",
+        "city_id": "odense",
+        "latitude": 55.4038,
+        "longitude": 10.4024
+      },
+      "response": {
+        "daily": {
+          "precipitation_sum": [
+            0.0,
+            0.0,
+            3.2,
+            3.6,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "temperature_2m_max": [
+            16.0,
+            18.1,
+            18.0,
+            16.1,
+            17.8,
+            18.1,
+            18.1
+          ],
+          "time": [
+            "2026-09-21",
+            "2026-09-22",
+            "2026-09-23",
+            "2026-09-24",
+            "2026-09-25",
+            "2026-09-26",
+            "2026-09-27"
+          ],
+          "wind_speed_10m_max": [
+            10.3,
+            5.14,
+            5.46,
+            6.4,
+            5.8,
+            5.13,
+            8.52
+          ]
+        },
+        "daily_units": {
+          "precipitation_sum": "mm",
+          "temperature_2m_max": "°C",
+          "time": "iso8601",
+          "wind_speed_10m_max": "m/s"
+        },
+        "elevation": 14.0,
+        "generationtime_ms": 0.6400346755981445,
+        "latitude": 55.5,
+        "longitude": 10.5,
+        "timezone": "Europe/Copenhagen",
+        "timezone_abbreviation": "GMT+2",
+        "utc_offset_seconds": 7200
+      }
+    }
+  ],
+  "parameters": {
+    "daily": "temperature_2m_max,precipitation_sum,wind_speed_10m_max",
+    "end_date": "2026-09-27",
+    "models": "era5",
+    "precipitation_unit": "mm",
+    "start_date": "2026-09-21",
+    "temperature_unit": "celsius",
+    "timezone": "Europe/Copenhagen",
+    "wind_speed_unit": "ms"
+  },
+  "retrieved_at": "2026-10-09T08:22:51.780983+00:00",
+  "source_url": "https://archive-api.open-meteo.com/v1/archive"
+}

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.env
+.env.*
+!.env.example
+.runs/
+.databricks/
+.agentbricks/local*
+dist/
+*.egg-info/
+LESSONS.md
