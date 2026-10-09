@@ -49,6 +49,7 @@ function addEvent(event) {
   if (!event || !event.phase) return;
   $('empty').hidden = true;
   const li = document.createElement('li'), title = document.createElement('strong');
+  li.dataset.role=event.role || 'tool';
   title.textContent = `${event.role || 'Tool'}: ${event.phase}`;
   li.append(title, document.createTextNode(event.detail || ''));
   $('events').append(li); li.scrollIntoView({block:'nearest'});
@@ -61,7 +62,15 @@ function block(parent, title, value, collapsible=false) {
 function renderResult(result) {
   $('answer').hidden=false; $('answer-content').replaceChildren();
   const answer=result.answer || result;
-  if (answer.text) block($('answer-content'),'Answer',Array.isArray(answer.text)?answer.text.join('\n\n'):answer.text);
+  if (answer.text) {
+    const paragraph=document.createElement('p');paragraph.style.whiteSpace='pre-wrap';
+    const text=Array.isArray(answer.text)?answer.text.join('\n\n'):answer.text;
+    for(const part of text.split(/(\*\*[^*]+\*\*)/g)) {
+      if(part.startsWith('**')&&part.endsWith('**')) {const strong=document.createElement('strong');strong.textContent=part.slice(2,-2);paragraph.append(strong)}
+      else paragraph.append(document.createTextNode(part));
+    }
+    $('answer-content').append(paragraph);
+  }
   if (answer.queries?.length) block($('answer-content'),'Generated SQL',answer.queries.join('\n\n'),true);
   for (const item of answer.data || []) {
     const statement=item.statement_response || {}, columns=statement.manifest?.schema?.columns || [];
@@ -71,9 +80,9 @@ function renderResult(result) {
     const head=document.createElement('tr');
     for (const column of columns) {const th=document.createElement('th');th.textContent=column.name;head.append(th)}
     table.append(head);
-    for (const row of rows) {const tr=document.createElement('tr');for(const value of row){const td=document.createElement('td');td.textContent=value===null?'Missing':String(value);tr.append(td)}table.append(tr)}
+    for (const row of rows) {const tr=document.createElement('tr');row.forEach((value,index)=>{const td=document.createElement('td');const numeric=['DOUBLE','FLOAT','DECIMAL'].includes(columns[index]?.type_name)&&value!==null&&Number.isFinite(Number(value));td.textContent=value===null?'Missing':numeric?Number(value).toLocaleString('en-US',{maximumFractionDigits:3}):String(value);td.title=value===null?'Missing':String(value);tr.append(td)});table.append(tr)}
     if (!rows.length) {const caption=document.createElement('caption');caption.textContent='No rows returned for this question.';table.prepend(caption)}
-    wrap.append(table);$('answer-content').append(wrap);
+    wrap.append(table);const note=document.createElement('small');note.textContent='Numeric display rounded to three decimal places. Hover for the returned value.';wrap.append(note);$('answer-content').append(wrap);
   }
   if (result.loaded) block($('answer-content'),'Validation',result.loaded,true);
   if (result.source_commit) block($('answer-content'),'Source revision',result.source_commit,true);
@@ -94,7 +103,7 @@ async function follow(id) {
     if (['completed','succeeded','failed','cancelled'].includes(run.status)) {
       sessionStorage.removeItem('weather-invocation');
       if (run.status==='failed' || run.status==='cancelled') throw new Error(JSON.stringify(run.error || run));
-      renderResult(result || run); $('status').textContent='Completed.'; return;
+      renderResult(result || run);for(const item of $('events').children){if(item.dataset.role==='tool'&&item.lastChild.textContent==='Running.')item.lastChild.textContent='Completed.'} $('status').textContent='Completed.'; return;
     }
     await new Promise(resolve=>setTimeout(resolve,1500));
   }} finally {events.close();}

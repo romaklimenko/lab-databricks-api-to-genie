@@ -131,6 +131,8 @@ uv run weather-lab onboard
 
 The pipeline loads the reviewed snapshot through an on-demand serverless Lakeflow Job. It validates all 21 rows against that snapshot before attaching the table to Genie. No job schedule or continuous pipeline is created.
 
+Allow several minutes for serverless startup. The two measured ingestion runs took 477 and 404 seconds end to end with the cost-oriented `STANDARD` performance target. Model decisions and Genie queries add time. Do a rehearsal before presenting.
+
 Accepted source artifacts appear on a `demo/<run-id>` branch in your configured repository. A second commit stores a sanitized result summary. The main branch is unchanged. Public artifacts replace the catalog with `YOUR_CATALOG`; private resource IDs stay in the run store.
 
 Ask Genie from chat, its Databricks UI, or the CLI:
@@ -200,7 +202,7 @@ uv sync --frozen
 uv run weather-lab replay --artifacts artifacts/REPLACE_RUN_ID
 ```
 
-For cloud reproduction, configure a fresh dedicated schema in `.env`, run `setup`, then:
+For cloud reproduction, configure a fresh dedicated schema and a separate `WEATHER_RUNS_DIR` such as `.runs/reproduction` in `.env`. Clear the old `WEATHER_WAREHOUSE_ID`, then run `setup --create-warehouse --tracing`. Each schema must have its own receipt directory or state volume. Do not reuse another schema's resource receipts. Then run:
 
 ```sh
 uv run weather-lab reproduce --artifacts artifacts/REPLACE_RUN_ID
@@ -239,4 +241,21 @@ Current platform references: [Agent Bricks CLI](https://learn.microsoft.com/en-u
 
 ## Verification record
 
-Implementation date: October 9, 2026. The first 13 offline tests pass. Ruff and all seven Agent Bricks doctor checks pass. Cloud validation is in progress. No actual-cost total is claimed before billing usage is available.
+Validated on October 9, 2026, using the pinned dependencies and a local chat server against Azure Databricks.
+
+| Check | Observed result |
+| --- | --- |
+| Local checks | 18 tests, Ruff, and all seven Agent Bricks doctor checks passed. Offline fixture replay kept 21 rows. |
+| Cloud ingestion | Two serverless job runs succeeded. Both produced exactly 21 unique rows matching the reviewed snapshot. |
+| Review and repair | The deterministic validator and model reviewer both caught the injected wind-unit mismatch. The supervisor requested steward repair. The second review passed. |
+| Browser workflow | Chat completed onboarding, Git publication, and a Genie answer. Reloading during execution reconnected to the same invocation. Desktop and mobile layouts passed browser checks. |
+| Repeated request | All five completed publication phases were reused. Job run count stayed at two. Source and evidence commit IDs stayed unchanged. |
+| Genie answers | Five saved answers passed the reference checks for precipitation, temperature, wind, coverage, and an unavailable period. Copenhagen had the highest weekly precipitation at 7.7 mm. |
+| Git reproduction | The published artifact package replayed locally to 21 rows. Reproduction into a second cloud schema remains untested. |
+| Shutdown | The owned warehouse reported `STOPPED`. The job had no active runs and no schedule. The local server was stopped. |
+
+The unavailable-period answer correctly returned a diagnostic message row. The initial evaluator treated that row as weather data. The corrected evaluator accepts the diagnostic and still rejects fabricated observations. The five recorded answers were rescored without additional Genie calls.
+
+Inspect the generated artifacts and sanitized results on the [repair run branch](https://github.com/romaklimenko/lab-databricks-api-to-genie/tree/demo/8943e25c8b0eb3801079ea88/artifacts/8943e25c8b0eb3801079ea88) and [browser run branch](https://github.com/romaklimenko/lab-databricks-api-to-genie/tree/demo/443b269674829570116a794f/artifacts/443b269674829570116a794f).
+
+Tracing instrumentation is present. An early diagnostic trace was read back with 51 spans. The final experiment is configured for Unity Catalog trace storage, but the bounded search for the successful browser run returned no trace. Successful UC trace retrieval remains unverified. Databricks Apps hosting also remains unverified. No actual-cost total is claimed before billing usage is available.

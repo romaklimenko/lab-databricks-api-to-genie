@@ -40,8 +40,26 @@ def compare(name, reference, answer):
                 "no rows",
             )
         )
-        checks["missing_coverage"] = (empty_result or explicit_missing) and not any(
-            result.get("result", {}).get("data_array") for result in results
+
+        def diagnostic_only(result):
+            data = result.get("result", {}).get("data_array", [])
+            columns = result.get("manifest", {}).get("schema", {}).get("columns", [])
+            return (
+                len(columns) == 1
+                and columns[0].get("name") == "message"
+                and columns[0].get("type_name") == "STRING"
+                and len(data) == 1
+                and len(data[0]) == 1
+                and "no data coverage" in str(data[0][0]).lower()
+            )
+
+        # Genie may return a single diagnostic message row instead of an empty weather table.
+        has_weather_rows = any(
+            result.get("result", {}).get("data_array") and not diagnostic_only(result)
+            for result in results
+        )
+        checks["missing_coverage"] = (
+            not expected and (empty_result or explicit_missing) and not has_weather_rows
         )
     else:
         checks["rows_match"] = any(

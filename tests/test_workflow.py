@@ -191,6 +191,25 @@ def test_query_evaluation_rejects_wrong_values():
     assert not compare("precipitation", reference, wrong)["passed"]
 
 
+def test_missing_coverage_accepts_diagnostic_but_rejects_weather_rows():
+    reference = {"status": {"state": "SUCCEEDED"}, "result": {}}
+    message = {
+        "manifest": {"schema": {"columns": [{"name": "message", "type_name": "STRING"}]}},
+        "status": {"state": "SUCCEEDED"},
+        "result": {"data_array": [["No data coverage for January 2025."]]},
+    }
+    answer = {
+        "text": ["No data coverage for January 2025."],
+        "data": [{"statement_response": message}],
+    }
+    assert compare("missing_period", reference, answer)["passed"]
+    answer["data"][0]["statement_response"] = {
+        "status": {"state": "SUCCEEDED"},
+        "result": {"data_array": [["2025-01-01", "0"]]},
+    }
+    assert not compare("missing_period", reference, answer)["passed"]
+
+
 def test_invocation_protocol_and_event_replay(monkeypatch):
     monkeypatch.setenv("DATABRICKS_AGENT_RUNTIME_STORE", "memory")
     from runtime.main import create_app
