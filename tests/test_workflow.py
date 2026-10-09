@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent.agent import design
-from weather_lab.artifacts import render
+from weather_lab.artifacts import canonical_space, render
 from weather_lab.config import ROOT, Settings
 from weather_lab.contracts import (
     Intent,
@@ -108,6 +108,31 @@ async def test_repeated_work_reuses_phases(tmp_path):
     assert first["run_id"] == second["run_id"]
     assert first["loaded"] == second["loaded"]
     assert len(brain.calls) == calls
+
+
+async def test_explicit_resume_reuses_accepted_design_and_rejects_scope_change(tmp_path):
+    brain = ScriptedBrain()
+    store = RunStore(tmp_path)
+    service = LabService(Settings(runs_dir=tmp_path), store, brain=brain)
+    first = await service.onboard("Load fixed week", ignore)
+    calls = len(brain.calls)
+    resumed = await service.onboard("Resume fixed week", ignore, resume_run_id=first["run_id"])
+    assert resumed["run_id"] == first["run_id"]
+    assert len(brain.calls) == calls
+    other = LabService(Settings(catalog="different", runs_dir=tmp_path), store, brain=brain)
+    with pytest.raises(ValueError, match="Resume requires matching"):
+        await other.onboard("Resume", ignore, resume_run_id=first["run_id"])
+    store.put_bytes(f"runs/{first['run_id']}/ingest.py", b"changed template")
+    with pytest.raises(ValueError, match="Pipeline template changed"):
+        await service.onboard("Resume", ignore, resume_run_id=first["run_id"])
+
+
+def test_genie_line_chunking_preserves_text_but_detects_content_change():
+    original = {"instructions": {"text_instructions": [{"content": ["One\nTwo"]}]}}
+    chunked = {"instructions": {"text_instructions": [{"content": ["One\n", "Two"]}]}}
+    assert canonical_space(original) == canonical_space(chunked)
+    chunked["instructions"]["text_instructions"][0]["content"][-1] = "Changed"
+    assert canonical_space(original) != canonical_space(chunked)
 
 
 async def test_review_failure_has_no_external_writes(tmp_path):

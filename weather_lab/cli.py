@@ -157,7 +157,7 @@ def configure_traces():
     configure_tracing()
 
 
-async def onboard(settings, request, fault):
+async def onboard(settings, request, fault, resume_run_id=None):
     import mlflow
     from databricks_agentkit.langgraph import start_trace
 
@@ -169,7 +169,9 @@ async def onboard(settings, request, fault):
 
     try:
         with start_trace("weather_onboarding", inputs={"request": request, "fault": fault}) as span:
-            result = await service.onboard(request, emit, inject_fault=fault)
+            result = await service.onboard(
+                request, emit, inject_fault=fault, resume_run_id=resume_run_id
+            )
             if span:
                 span.set_outputs(result)
     finally:
@@ -199,6 +201,9 @@ def main():
     )
     run_parser = sub.add_parser("onboard", help="Run the supervisor and specialists")
     run_parser.add_argument("--request", default=DEFAULT_REQUEST)
+    run_parser.add_argument(
+        "--resume", help="Resume saved accepted artifacts after a transport fix"
+    )
     run_parser.add_argument(
         "--fault", action="store_true", help="Inject a labeled unit error for review"
     )
@@ -260,7 +265,7 @@ def main():
     elif args.command == "setup":
         output(setup(settings, args.create_warehouse, args.tracing))
     elif args.command == "onboard":
-        output(asyncio.run(onboard(settings, args.request, args.fault)))
+        output(asyncio.run(onboard(settings, args.request, args.fault, args.resume)))
     elif args.command == "reproduce":
         from weather_lab.contracts import DatasetContract, IngestionSpec
         from weather_lab.source import digest

@@ -8,7 +8,7 @@ from datetime import timedelta
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service import catalog, compute, jobs, workspace
 
-from weather_lab.artifacts import genie_config
+from weather_lab.artifacts import canonical_space, genie_config
 from weather_lab.config import Settings
 
 OWNER = "weather-api-to-genie lab"
@@ -186,15 +186,18 @@ class CloudTarget:
         current = w.api_client.do("GET", path, query={"include_serialized_space": True})
         if current.get("description") != OWNER:
             raise ValueError("Genie Agent ownership marker changed")
-        if json.loads(current["serialized_space"]) != config:
+        if canonical_space(json.loads(current["serialized_space"])) != canonical_space(config):
             body = {"serialized_space": json.dumps(config)}
             if current.get("etag"):
                 body["etag"] = current["etag"]
             w.api_client.do("PATCH", path, body=body)
         applied = w.api_client.do("GET", path, query={"include_serialized_space": True})
-        actual = json.loads(applied["serialized_space"])
+        actual = canonical_space(json.loads(applied["serialized_space"]))
         attached = {item["identifier"] for item in actual["data_sources"]["tables"]}
-        if attached != {s.table} or actual.get("instructions") != config["instructions"]:
+        if (
+            attached != {s.table}
+            or actual.get("instructions") != canonical_space(config)["instructions"]
+        ):
             raise ValueError("Genie readback differs from accepted configuration")
         return resource
 

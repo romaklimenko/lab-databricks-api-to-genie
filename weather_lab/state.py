@@ -22,6 +22,10 @@ class RunStore:
         return key
 
     def get(self, key: str):
+        value = self.get_bytes(key)
+        return json.loads(value) if value is not None else None
+
+    def get_bytes(self, key: str):
         key = self._path(key)
         if self.volume:
             from databricks.sdk.errors import NotFound
@@ -29,11 +33,11 @@ class RunStore:
             try:
                 response = self.workspace.files.download(f"{self.volume}/{key}")
                 with response.contents as stream:
-                    return json.loads(stream.read())
+                    return stream.read()
             except NotFound:
                 return None
         path = self.root / key
-        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        return path.read_bytes() if path.exists() else None
 
     def put(self, key: str, value):
         self.put_bytes(key, encoded(value))

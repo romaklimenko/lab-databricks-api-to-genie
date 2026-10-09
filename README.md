@@ -153,6 +153,8 @@ The labeled test harness changes the candidate wind unit to `km/h` while the API
 
 Repeating the same accepted inputs and implementation reuses completed phase receipts. It does not launch another successful job or create duplicate Git commits. A failed job remains a failed run for that fingerprint. Fix its cause before retrying with changed implementation or a fresh lab schema. Preserve receipts when restarting the server.
 
+After fixing a transport or configuration issue, resume the saved run explicitly with `uv run weather-lab onboard --fault --resume RUN_ID`. Omit `--fault` for a run that did not inject a fault. Resume verifies the source, target, model, repository, and unchanged pipeline template before reusing completed phases. It revalidates the saved design.
+
 ## End-of-day shutdown
 
 1. Stop the local chat server with **Ctrl+C**. Stop any separate onboarding process too.
@@ -164,7 +166,7 @@ uv run weather-lab stop
 uv run weather-lab status
 ```
 
-`stop` blocks new lab work, stops the configured app if present, cancels active lab job runs, and waits for the owned SQL warehouse to stop. It deletes no data. Closing the browser does not stop cloud compute.
+`stop` blocks new requests through the lab, stops the configured app if present, cancels active lab job runs, and waits for the owned SQL warehouse to stop. It deletes no data. Closing the browser does not stop cloud compute. Asking Genie directly in Databricks can restart the warehouse even when the local lab is stopped.
 
 | Resource | End-of-day action | What remains |
 | --- | --- | --- |
@@ -189,11 +191,11 @@ Databricks publishes a 2X-Small SQL serverless rate of 4 DBU/hour. Multiply that
 
 ## Reproduce from a generated Git branch
 
-Fetch the branch reported by the run, then check it out in a separate clone or worktree. The artifact directory contains the snapshot, ingestion specification, contract, generated pipeline, Genie configuration, and manifest.
+In a separate clone of the current main branch, fetch the demo branch and restore its artifact directory. Keep the current runtime so API compatibility fixes are available. The artifact directory contains the snapshot, ingestion specification, contract, generated pipeline, Genie configuration, and manifest.
 
 ```sh
 git fetch origin
-git switch --track origin/demo/REPLACE_RUN_ID
+git restore --source=origin/demo/REPLACE_RUN_ID --worktree -- artifacts/REPLACE_RUN_ID
 uv sync --frozen
 uv run weather-lab replay --artifacts artifacts/REPLACE_RUN_ID
 ```

@@ -1,6 +1,7 @@
 """Coordinate reviewed artifacts and idempotent external phases."""
 
 import asyncio
+import re
 
 from weather_lab.artifacts import render
 from weather_lab.config import ROOT, Settings
@@ -24,11 +25,13 @@ class LabService:
         )
         self.lock = asyncio.Lock()
 
-    async def onboard(self, request: str, emit, *, inject_fault=False) -> dict:
+    async def onboard(self, request: str, emit, *, inject_fault=False, resume_run_id=None) -> dict:
         async with self.lock:
-            return await self._onboard(request, emit, inject_fault=inject_fault)
+            return await self._onboard(
+                request, emit, inject_fault=inject_fault, resume_run_id=resume_run_id
+            )
 
-    async def _onboard(self, request, emit, *, inject_fault):
+    async def _onboard(self, request, emit, *, inject_fault, resume_run_id):
         from agent.agent import design
 
         snapshot = read_json(ROOT / "fixtures/weather.json")
@@ -38,20 +41,32 @@ class LabService:
             for path in sorted((ROOT / folder).glob("*.py"))
             if path.name not in {"cli.py", "service.py", "__init__.py"}
         }
-        fingerprint = digest(
-            {
-                "snapshot": digest(snapshot),
-                "table": self.settings.table,
-                "model": self.settings.model,
-                "fault": inject_fault,
-                "target": self.settings.target,
-                "repository": self.settings.github_repo,
-                "implementation": implementation,
-                "version": 1,
-            }
-        )
+        scope = {
+            "snapshot": digest(snapshot),
+            "table": self.settings.table,
+            "model": self.settings.model,
+            "fault": inject_fault,
+            "target": self.settings.target,
+            "repository": self.settings.github_repo,
+        }
+        fingerprint = digest({**scope, "implementation": implementation, "version": 1})
         run_id = fingerprint[:24]
+        if resume_run_id:
+            if not re.fullmatch(r"[0-9a-f]{24}", resume_run_id):
+                raise ValueError("Invalid resume run ID")
+            saved = self.store.get(f"runs/{resume_run_id}/receipt.json")
+            if not saved or saved.get("scope") != scope:
+                raise ValueError(
+                    "Resume requires matching source, target, model, fault mode, and repository"
+                )
+            if (
+                self.store.get_bytes(f"runs/{resume_run_id}/ingest.py")
+                != (ROOT / "weather_lab/job.py").read_bytes()
+            ):
+                raise ValueError("Pipeline template changed; start a new reviewed run")
+            run_id, fingerprint = resume_run_id, saved["fingerprint"]
         receipt = Receipt(self.store, run_id, fingerprint)
+        receipt.data["scope"] = scope
 
         async def progress(event):
             receipt.data["events"].append(event)

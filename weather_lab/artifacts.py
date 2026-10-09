@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from copy import deepcopy
 
 from weather_lab.config import ROOT, Settings
 from weather_lab.contracts import DatasetContract, IngestionSpec, accepted_hash, validate
@@ -10,6 +11,17 @@ from weather_lab.source import encoded
 
 def stable_id(value: str) -> str:
     return uuid.uuid5(uuid.NAMESPACE_URL, "weather-agent-lab:" + value).hex
+
+
+def canonical_space(value: dict) -> dict:
+    """Genie may split serialized text into newline-preserving chunks."""
+    result = deepcopy(value)
+    instructions = result.get("instructions", {})
+    for item in instructions.get("text_instructions", []):
+        item["content"] = ["".join(item.get("content", []))]
+    for item in instructions.get("example_question_sqls", []):
+        item["sql"] = ["".join(item.get("sql", []))]
+    return result
 
 
 def genie_config(settings: Settings, contract: DatasetContract) -> dict:
