@@ -115,11 +115,14 @@ The schema name must start with `weather_agents_lab`. Existing resources must ca
 
 ## Run the demo
 
-Start the chat server:
+Allow new work, then start one chat server. Run these commands from the repository. The `start` command is also required after an earlier shutdown. It only clears the stop flag; it does not start paid compute.
 
 ```sh
+uv run weather-lab start
 uv run start-server
 ```
+
+Keep that terminal open. If the server is already running in another terminal, use its browser page. Do not start a second server on port 8000.
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Submit the prefilled onboarding request. The UI displays supervisor decisions, review findings, tool phases, validation, Git revisions, and Genie's SQL.
 
@@ -230,6 +233,9 @@ Deleting a hosted deployment and its managed Runtime Store is different from sto
 - Missing model access: select a permitted Unity Gateway service in `WEATHER_MODEL`. Calls use the configured profile locally and the app identity when hosted.
 - Rejected source: inspect the unit, required-field, date, and completeness error. Do not bypass validation to publish it.
 - Interrupted run: preserve `.runs/`, inspect job state and receipts, then retry the same request. Local browser invocation IDs do not survive a server restart; phase receipts do.
+- Lab stopped: run `uv run weather-lab start` in another terminal, then retry. Starting the chat server alone does not clear the saved stop flag. The running server reads the flag on each request.
+- Port 8000 already in use (`WinError 10048`): the server may already be running in another terminal. Use that instance, or stop it with Ctrl+C before starting another.
+- Failed invocation: the UI shows a recovery message for a stopped lab. Other failures show the exception type and invocation ID. Read the full traceback in the terminal running `uv run start-server`. Raw upstream exception details are not exposed in chat.
 - Git conflict: inspect the task branch before retrying. The publisher never force-pushes.
 - Traces: `setup --tracing` records an MLflow experiment. Open that experiment in Databricks. Do not enable continuous scorers for this small demo.
 
@@ -245,7 +251,7 @@ Validated on October 9, 2026, using the pinned dependencies and a local chat ser
 
 | Check | Observed result |
 | --- | --- |
-| Local checks | 18 tests, Ruff, and all seven Agent Bricks doctor checks passed. Offline fixture replay kept 21 rows. |
+| Local checks | 20 tests, Ruff, and all seven Agent Bricks doctor checks passed. Offline fixture replay kept 21 rows. |
 | Cloud ingestion | Two serverless job runs succeeded. Both produced exactly 21 unique rows matching the reviewed snapshot. |
 | Review and repair | The deterministic validator and model reviewer both caught the injected wind-unit mismatch. The supervisor requested steward repair. The second review passed. |
 | Browser workflow | Chat completed onboarding, Git publication, and a Genie answer. Reloading during execution reconnected to the same invocation. Desktop and mobile layouts passed browser checks. |

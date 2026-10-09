@@ -31,12 +31,16 @@ def service():
 def create_app(service_factory=service):
     app = DurableAgentServer()
 
-    async def invoke(value, context: InvocationContext):
+    async def execute(value, context: InvocationContext):
         payload = ChatInput.model_validate(value)
         lab = service_factory()
+        await asyncio.to_thread(lab.store.require_running)
         with start_trace(
             "weather_chat", inputs=payload.model_dump(), session_id=context.session_id
         ) as span:
+            await context.emit(
+                {"role": "router", "phase": "request", "detail": "Checking the requested task."}
+            )
             intent = await lab.brain.structured(
                 "request router",
                 "Use onboard only for a request to load/configure the supported fixed dataset: Copenhagen, Aarhus, Odense, September 21-27, 2026. Use ask for data questions. Clarify requests for other cities, periods, APIs, or undefined preferences. All operations stay inside the configured lab.",
@@ -69,6 +73,21 @@ def create_app(service_factory=service):
             if span:
                 span.set_outputs(result)
             return result
+
+    async def invoke(value, context: InvocationContext):
+        try:
+            return await execute(value, context)
+        except Exception as error:
+            if isinstance(error, RuntimeError) and str(error).startswith("Lab is stopped."):
+                detail = "Lab is stopped. Run uv run weather-lab start, then retry. No server restart is needed."
+            else:
+                detail = (
+                    f"Request failed ({type(error).__name__}). Check the terminal running "
+                    f"uv run start-server for the traceback. Invocation: {context.invocation_id}."
+                )
+            # Persist a safe explanation. The runtime masks raw exceptions in its status API.
+            await context.emit({"role": "system", "phase": "failed", "detail": detail})
+            raise
 
     app.invoke(invoke)
     # No automatic worker recovery in v1. Persisted receipts allow a deliberate retry

@@ -210,7 +210,7 @@ def test_missing_coverage_accepts_diagnostic_but_rejects_weather_rows():
     assert not compare("missing_period", reference, answer)["passed"]
 
 
-def test_invocation_protocol_and_event_replay(monkeypatch):
+def test_invocation_protocol_and_event_replay(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABRICKS_AGENT_RUNTIME_STORE", "memory")
     from runtime.main import create_app
 
@@ -218,7 +218,7 @@ def test_invocation_protocol_and_event_replay(monkeypatch):
         await emit({"role": "reviewer", "phase": "passed", "detail": "Fixture accepted"})
         return {"status": "completed", "text": "Test result"}
 
-    lab = SimpleNamespace(brain=ScriptedBrain(), onboard=onboard)
+    lab = SimpleNamespace(brain=ScriptedBrain(), onboard=onboard, store=RunStore(tmp_path))
     with TestClient(create_app(lambda: lab)) as client:
         invocation_id = str(uuid4())
         response = client.post(
@@ -231,3 +231,44 @@ def test_invocation_protocol_and_event_replay(monkeypatch):
         events = client.get(f"/api/invocations/{invocation_id}/events").text
         assert '"phase": "passed"' in events
         assert client.get("/").status_code == 200
+
+
+def test_stopped_chat_fails_before_model_calls_and_explains_recovery(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABRICKS_AGENT_RUNTIME_STORE", "memory")
+    from runtime.main import create_app
+
+    store = RunStore(tmp_path)
+    store.put("resources/control.json", {"stopped": True})
+    brain = ScriptedBrain()
+    lab = LabService(Settings(runs_dir=tmp_path), store, brain=brain)
+    with TestClient(create_app(lambda: lab)) as client:
+        invocation_id = str(uuid4())
+        response = client.post(
+            "/api/invocations", json={"id": invocation_id, "input": {"prompt": "Load fixed week"}}
+        )
+        assert response.status_code == 500
+        assert client.get(f"/api/invocations/{invocation_id}").json()["status"] == "failed"
+        events = client.get(f"/api/invocations/{invocation_id}/events").text
+        assert "uv run weather-lab start" in events
+        assert '"phase": "failed"' in events
+        assert not brain.calls
+
+
+def test_early_failure_preserves_safe_diagnostic_without_raw_exception(monkeypatch):
+    monkeypatch.setenv("DATABRICKS_AGENT_RUNTIME_STORE", "memory")
+    from runtime.main import create_app
+
+    def unavailable_service():
+        raise ValueError("Private upstream error details")
+
+    with TestClient(create_app(unavailable_service)) as client:
+        invocation_id = str(uuid4())
+        response = client.post(
+            "/api/invocations", json={"id": invocation_id, "input": {"prompt": "Load fixed week"}}
+        )
+        assert response.status_code == 500
+        events = client.get(f"/api/invocations/{invocation_id}/events").text
+        assert "ValueError" in events
+        assert invocation_id in events
+        assert "server for the traceback" in events
+        assert "Private upstream error details" not in events

@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Weather to Genie</title>
   <style>
-    :root { color-scheme: light dark; --bg:#f4f5f2; --fg:#172d32; --panel:#fff; --muted:#52676d; --line:#cbd5d2; --accent:#145b65; }
+    :root { color-scheme: light dark; --bg:#f4f5f2; --fg:#172d32; --panel:#fff; --muted:#52676d; --line:#cbd5d2; --accent:#145b65; --error:#a32c29; }
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}
     main{max-width:1120px;margin:48px auto;padding:0 24px}header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:28px}
     h1{font-size:42px;line-height:1.1;margin:8px 0 14px;letter-spacing:-1.5px}h2{font-size:18px;margin-top:0}p{margin:8px 0}.eyebrow{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
@@ -15,9 +15,9 @@
     #events{padding-left:21px;max-height:390px;overflow:auto}#events li{margin:0 0 15px;padding-left:5px}#events strong{display:block}.empty{color:var(--muted);padding:20px 0}
     pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;background:var(--bg);padding:14px;border-radius:7px}details{margin:14px 0}summary{cursor:pointer;font-weight:600}
     .table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px}th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px}th{background:var(--bg)}
-    #answer{margin-top:24px}#error{color:#a32c29;white-space:pre-wrap}a{color:var(--accent)}[hidden]{display:none!important}
+    #answer{margin-top:24px}#error{color:var(--error);white-space:pre-wrap}a{color:var(--accent)}[hidden]{display:none!important}
     @media(max-width:760px){main{margin:24px auto}.grid{grid-template-columns:1fr}h1{font-size:34px}}
-    @media(prefers-color-scheme:dark){:root{--bg:#132025;--fg:#e4eeeb;--panel:#1c2b31;--muted:#a5b9b8;--line:#3b5055;--accent:#72cad0}button{color:#132025}}
+    @media(prefers-color-scheme:dark){:root{--bg:#132025;--fg:#e4eeeb;--panel:#1c2b31;--muted:#a5b9b8;--line:#3b5055;--accent:#72cad0;--error:#ffaaa5}button{color:#132025}}
   </style>
 </head>
 <body><main>
@@ -89,11 +89,15 @@ function renderResult(result) {
   if (result.evidence_commit) block($('answer-content'),'Evidence revision',result.evidence_commit,true);
 }
 async function follow(id) {
-  let lastEvent=0;
+  let lastEvent=0, failureMessage='';
+  function receive(sequence, event) {
+    if (sequence<=lastEvent) return;
+    addEvent(event);lastEvent=sequence;
+    if (event.role==='system'&&event.phase==='failed') failureMessage=event.detail;
+  }
   const events = new EventSource(`/api/invocations/${id}/events`);
   events.onmessage = event => {
-    const sequence=Number(event.lastEventId);
-    if (sequence>lastEvent) {addEvent(JSON.parse(event.data));lastEvent=sequence;}
+    receive(Number(event.lastEventId), JSON.parse(event.data));
   };
   try {for (;;) {
     const run=await api(`/api/invocations/${id}`);
@@ -102,7 +106,20 @@ async function follow(id) {
     const result=run.output || run.result;
     if (['completed','succeeded','failed','cancelled'].includes(run.status)) {
       sessionStorage.removeItem('weather-invocation');
-      if (run.status==='failed' || run.status==='cancelled') throw new Error(JSON.stringify(run.error || run));
+      events.close();
+      // A fast failure can finish before EventSource connects. Drain the saved terminal events.
+      try {
+        const replay=await fetch(`/api/invocations/${id}/events?after=${lastEvent}`,{signal:AbortSignal.timeout(10000)});
+        if (replay.ok) for (const item of (await replay.text()).split(/\r?\n\r?\n/)) {
+          const lines=item.split(/\r?\n/), sequence=lines.find(line=>line.startsWith('id:'));
+          const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n');
+          if (sequence&&data) receive(Number(sequence.slice(3)),JSON.parse(data));
+        }
+      } catch (error) {console.warn('Could not replay final events:',error)}
+      if (run.status==='failed' || run.status==='cancelled') {
+        const fallback=typeof run.error==='object'?run.error?.message:run.error;
+        throw new Error(failureMessage || `${fallback || 'Request failed'}. Check the server terminal. Invocation: ${id}.`);
+      }
       renderResult(result || run);for(const item of $('events').children){if(item.dataset.role==='tool'&&item.lastChild.textContent==='Running.')item.lastChild.textContent='Completed.'} $('status').textContent='Completed.'; return;
     }
     await new Promise(resolve=>setTimeout(resolve,1500));
