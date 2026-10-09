@@ -19,6 +19,8 @@ class ModelBrain:
             use_ai_gateway=model.startswith("system.ai."),
             temperature=0,
             max_tokens=2200,
+            timeout=90,
+            max_retries=1,
         )
 
     async def structured(self, role: str, instructions: str, context: dict, schema):
@@ -78,7 +80,7 @@ async def design(brain, snapshot: dict, request: str, emit, *, inject_fault=Fals
             available = ["ingestion", "steward", "stop"]
         decision = await brain.structured(
             "supervisor",
-            "Choose the specialist that can resolve the current findings. Only select an available action. Never claim completion before publish is available.",
+            "Choose the specialist that can resolve the current findings. Only select an available action. Ingestion drafts field mappings only. Steward drafts column semantics only. Reviewer checks both. Publish signals deterministic tools to commit, load, and configure Genie. Never claim completion before publish is available. Prior failures may already have been addressed; review must recheck them.",
             {"request": request, "available": available, "state": state},
             Route,
         )
@@ -130,7 +132,7 @@ async def design(brain, snapshot: dict, request: str, emit, *, inject_fault=Fals
         failures = validate(snapshot, spec, contract)
         review = await brain.structured(
             "independent reviewer",
-            "Check the artifacts against source facts. Check units, meanings, daily grain, field mappings, and aggregation. Deterministic failures are mandatory rejection reasons. Approve only with no unresolved defects.",
+            "Check the artifacts against source facts. Check units, meanings, daily grain, field mappings, and aggregation. Deterministic failures are mandatory rejection reasons. The findings array contains ONLY unresolved defects, never successful checks or confirmations. If all checks pass, return passed=true and findings=[]. Otherwise return passed=false and list defects to repair.",
             {
                 "facts": facts,
                 "spec": state["spec"],

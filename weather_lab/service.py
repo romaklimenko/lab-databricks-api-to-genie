@@ -59,12 +59,17 @@ class LabService:
             await emit(event)
 
         async def phase(name, function):
+            from databricks_agentkit.langgraph import start_trace
+
             if (previous := receipt.completed(name)) is not None:
                 await emit({"role": "tool", "phase": name, "detail": "Reusing completed phase."})
                 return previous
             await asyncio.to_thread(self.store.require_running)
             await progress({"role": "tool", "phase": name, "detail": "Running."})
-            result = await asyncio.to_thread(function)
+            with start_trace(name, inputs={"run_id": run_id}) as span:
+                result = await asyncio.to_thread(function)
+                if span:
+                    span.set_outputs(result)
             await asyncio.to_thread(receipt.finish, name, result)
             return result
 

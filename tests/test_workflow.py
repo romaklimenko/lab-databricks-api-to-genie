@@ -126,6 +126,17 @@ async def test_review_failure_has_no_external_writes(tmp_path):
     assert not (tmp_path / "weather.sqlite").exists()
 
 
+async def test_approval_with_findings_cannot_publish(snapshot):
+    class InconsistentReviewer(ScriptedBrain):
+        async def structured(self, role, instructions, context, schema):
+            if role == "independent reviewer":
+                return Review(passed=True, findings=["A defect still needs repair"])
+            return await super().structured(role, instructions, context, schema)
+
+    with pytest.raises(ValueError, match="Review did not pass"):
+        await design(InconsistentReviewer(), snapshot, "Load fixed week", ignore)
+
+
 def test_public_artifacts_and_genie_examples(snapshot):
     files = render(
         snapshot, reference_spec(), reference_contract(), Settings(catalog="YOUR_CATALOG")

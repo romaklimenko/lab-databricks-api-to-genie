@@ -107,7 +107,7 @@ uv run weather-lab preflight
 uv run weather-lab setup --create-warehouse --tracing
 ```
 
-**The setup command starts paid SQL compute.** It creates a dedicated 2X-Small serverless warehouse with one cluster and a five-minute auto-stop. It also creates the lab schema, artifacts volume, and MLflow experiment. It saves private resource receipts in `.runs/resources/` and writes the warehouse and experiment IDs to ignored `.env`.
+**The setup command starts paid SQL compute.** It creates a dedicated 2X-Small serverless warehouse with one cluster and a five-minute auto-stop. It also creates the lab schema, artifacts volume, and MLflow experiment with trace tables in that schema. It saves private resource receipts in `.runs/resources/` and writes the warehouse and experiment IDs to ignored `.env`.
 
 Alternatively, set `WEATHER_WAREHOUSE_ID` to a warehouse you can use and run `setup --tracing`. The stop command will report that warehouse but will not stop a user-supplied shared resource.
 
@@ -237,4 +237,4 @@ Current platform references: [Agent Bricks CLI](https://learn.microsoft.com/en-u
 
 ## Verification record
 
-Implementation date: October 9, 2026. Local and cloud validation results will be recorded here after execution. No actual-cost total is claimed before billing usage is available.
+Implementation date: October 9, 2026. The first 13 offline tests pass. Ruff and all seven Agent Bricks doctor checks pass. Cloud validation is in progress. No actual-cost total is claimed before billing usage is available.

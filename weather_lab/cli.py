@@ -80,14 +80,19 @@ def setup(settings, create_warehouse, tracing=False):
         raise ValueError("Set WEATHER_WAREHOUSE_ID or pass --create-warehouse")
     if tracing:
         import mlflow
+        from mlflow.entities.trace_location import UnityCatalog
 
         mlflow.set_tracking_uri("databricks")
+        trace_warehouse = resources.get("warehouse_id", settings.warehouse_id)
+        os.environ["MLFLOW_TRACING_SQL_WAREHOUSE_ID"] = trace_warehouse
         experiment = mlflow.set_experiment(
-            f"/Shared/weather-api-to-genie-{settings.catalog}-{settings.schema}"
+            f"/Shared/weather-api-to-genie-{settings.catalog}-{settings.schema}-uc",
+            trace_location=UnityCatalog(catalog_name=settings.catalog, schema_name=settings.schema),
         )
         store.put("resources/experiment.json", {"experiment_id": experiment.experiment_id})
         set_key(ROOT / ".env", "MLFLOW_TRACKING_URI", "databricks")
         set_key(ROOT / ".env", "MLFLOW_EXPERIMENT_ID", experiment.experiment_id)
+        set_key(ROOT / ".env", "MLFLOW_TRACING_SQL_WAREHOUSE_ID", trace_warehouse)
         resources["experiment_id"] = experiment.experiment_id
     return resources
 
@@ -153,6 +158,7 @@ def configure_traces():
 
 
 async def onboard(settings, request, fault):
+    import mlflow
     from databricks_agentkit.langgraph import start_trace
 
     service, _ = make_service(settings)
@@ -161,10 +167,16 @@ async def onboard(settings, request, fault):
     async def emit(event):
         output(event)
 
-    with start_trace("weather_onboarding", inputs={"request": request, "fault": fault}) as span:
-        result = await service.onboard(request, emit, inject_fault=fault)
-        if span:
-            span.set_outputs({"status": result["status"], "run_id": result["run_id"]})
+    try:
+        with start_trace("weather_onboarding", inputs={"request": request, "fault": fault}) as span:
+            result = await service.onboard(request, emit, inject_fault=fault)
+            if span:
+                span.set_outputs(result)
+    finally:
+        trace_id = mlflow.get_last_active_trace_id()
+        if trace_id:
+            service.store.put("last-trace.json", {"trace_id": trace_id})
+            output({"trace_id": trace_id})
     return result
 
 

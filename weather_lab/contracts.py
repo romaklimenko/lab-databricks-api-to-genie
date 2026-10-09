@@ -39,7 +39,10 @@ class DatasetContract(StrictModel):
 
 class Review(StrictModel):
     passed: bool
-    findings: list[str] = Field(max_length=10)
+    findings: list[str] = Field(
+        max_length=10,
+        description="Unresolved defects only. Return [] when passed is true. Do not list successful checks, confirmations, or observations.",
+    )
 
 
 class Route(StrictModel):
